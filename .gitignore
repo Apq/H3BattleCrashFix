@@ -1,0 +1,21 @@
+# radare2 临时脚本
+_r2_*.r2
+
+# Visual Studio
+.vs/
+*.vcxproj.user
+
+# 编译产物 —— 顶层输出目录（sp.slnx 作为解决方案时 SolutionDir=sp\）
+/Release/
+/Debug/
+
+# 各项目内部输出目录
+**/Release/
+**/Debug/
+
+# VS 中间目录（IntDir 默认 = ProjectName/Configuration/）
+BattleValueInfo/
+
+# Visual Studio 资源编辑器缓存
+*.aps
+
