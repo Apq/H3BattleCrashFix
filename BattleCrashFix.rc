@@ -14,8 +14,8 @@ LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
 //
 
 IDR_VERSIONINFO VERSIONINFO
- FILEVERSION 0,2,2026,628
- PRODUCTVERSION 0,2,2026,628
+ FILEVERSION 0,3,2026,702
+ PRODUCTVERSION 0,3,2026,702
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -33,12 +33,12 @@ BEGIN
             VALUE "Comments", "ÐÞ¸´Çý³ýÕÏ°­Ë«ÖØÊÍ·Å±ÀÀ££¬ÒÔ¼°¶À½ÇÊÞ¿¹Ä§¹â»·ÓëÉ¥ÐÄ²¡¿ñ/¹Æ»óµ¥Î»½»»¥±ÀÀ£¡£"
             VALUE "CompanyName", "Heroes3 SP ²å¼þ"
             VALUE "FileDescription", "Ó¢ÐÛÎÞµÐ3 HD Mod Õ½¶·±ÀÀ£ÐÞ¸´²å¼þ"
-            VALUE "FileVersion", "0.2.2026.628"
+            VALUE "FileVersion", "0.3.2026.702"
             VALUE "InternalName", "BattleCrashFix"
             VALUE "LegalCopyright", "Copyright (C) Apq"
             VALUE "OriginalFilename", "BattleCrashFix.dll"
             VALUE "ProductName", "BattleCrashFix"
-            VALUE "ProductVersion", "0.2.2026.628"
+            VALUE "ProductVersion", "0.3.2026.702"
         END
     END
     BLOCK "VarFileInfo"
