@@ -42,9 +42,14 @@ MSBuild BattleCrashFix.vcxproj /p:Configuration=Release /p:Platform=Win32
 
 ## 配置
 
-`BattleCrashFix.ini` 可独立开关每个修复（0=开启，1=禁用）：
+`BattleCrashFix.ini` 可独立开关每个修复（0=开启，1=禁用），也可禁止日志：
 
 ```ini
+[Logging]
+; 0 = 不禁止，正常写日志并保留最近 30 个（默认）
+; 1 = 禁止，不生成日志，也不扫描/清理旧日志
+DisableLog=0
+
 [Options]
 DisableObstacle=0
 DisableAura=0
@@ -52,4 +57,4 @@ DisableAura=0
 
 ## 日志
 
-每次游戏启动生成一个 `.log` 文件，包含 `[障碍]`、`[光环]`、`[阻止清理]` 标签。自动保留最近 30 个。
+默认每次游戏启动生成一个 `.log` 文件，包含 `[障碍]`、`[光环]`、`[阻止清理]` 标签，并自动保留最近 30 个。设置 `[Logging] DisableLog=1` 后，不生成日志，也不扫描/清理旧日志。

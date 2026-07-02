@@ -46,6 +46,7 @@ static int __cdecl CompareLogFileEntryW(const void* a, const void* b)
 
 static bool g_disable_obstacle = false;
 static bool g_disable_aura     = false;
+static bool g_disable_log      = false;
 
 // ==================== 地址常量 ====================
 
@@ -64,6 +65,7 @@ static const DWORD OFS_ACTIVE_SPELLS_DURATION = 0x198;
 
 static void WriteLog(const char* tag, const char* fmt, ...)
 {
+    if (g_disable_log) return;
     if (!g_wlog_path[0]) return;
 
     FILE* f = nullptr;
@@ -124,6 +126,77 @@ static void CleanupOldLogFilesW(const wchar_t* log_dir, const wchar_t* log_base,
     HeapFree(GetProcessHeap(), 0, entries);
 }
 
+static char* TrimAscii(char* s)
+{
+    if (!s) return s;
+    if ((unsigned char)s[0] == 0xEF && (unsigned char)s[1] == 0xBB && (unsigned char)s[2] == 0xBF)
+        s += 3;
+    while (*s == ' ' || *s == '\t') ++s;
+
+    char* end = s + strlen(s);
+    while (end > s && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' || end[-1] == '\n'))
+        *--end = 0;
+    return s;
+}
+
+static bool ReadDisableLogFromIniFileW(const wchar_t* ini_path)
+{
+    if (!ini_path || !ini_path[0]) return false;
+
+    HANDLE file = CreateFileW(ini_path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE)
+        return false;
+
+    char buf[4097];
+    DWORD bytes_read = 0;
+    BOOL ok = ReadFile(file, buf, sizeof(buf) - 1, &bytes_read, nullptr);
+    CloseHandle(file);
+    if (!ok || bytes_read == 0)
+        return false;
+    buf[bytes_read] = 0;
+
+    bool in_logging = false;
+    char* p = buf;
+    while (*p) {
+        char* line = p;
+        while (*p && *p != '\r' && *p != '\n') ++p;
+        if (*p) {
+            *p++ = 0;
+            if (p[-1] == '\r' && *p == '\n') ++p;
+        }
+
+        char* s = TrimAscii(line);
+        if (!s || !*s || *s == ';' || *s == '#')
+            continue;
+
+        if (*s == '[') {
+            char* close = strchr(s, ']');
+            if (!close) {
+                in_logging = false;
+                continue;
+            }
+            *close = 0;
+            char* section = TrimAscii(s + 1);
+            in_logging = section && _stricmp(section, "Logging") == 0;
+            continue;
+        }
+
+        if (!in_logging)
+            continue;
+
+        char* eq = strchr(s, '=');
+        if (!eq) continue;
+        *eq = 0;
+        char* key = TrimAscii(s);
+        char* value = TrimAscii(eq + 1);
+        if (key && value && _stricmp(key, "DisableLog") == 0)
+            return atoi(value) != 0;
+    }
+
+    return false;
+}
+
 static void SetupPaths(HMODULE hModule)
 {
     wchar_t wpath[MAX_PATH] = {0};
@@ -149,6 +222,12 @@ static void SetupPaths(HMODULE hModule)
     _snwprintf_s(g_wini_path, _countof(g_wini_path), _TRUNCATE,
         L"%s\\%s.ini", wdir[0] ? wdir : L".", wbase[0] ? wbase : L"BattleCrashFix");
 
+    g_disable_log = ReadDisableLogFromIniFileW(g_wini_path);
+    if (g_disable_log) {
+        g_wlog_path[0] = 0;
+        return;
+    }
+
     SYSTEMTIME st;
     GetLocalTime(&st);
     _snwprintf_s(g_wlog_path, _countof(g_wlog_path), _TRUNCATE,
@@ -166,9 +245,10 @@ static void LoadConfig()
     g_disable_obstacle = GetPrivateProfileIntW(L"Options", L"DisableObstacle", 0, g_wini_path) != 0;
     g_disable_aura     = GetPrivateProfileIntW(L"Options", L"DisableAura",     0, g_wini_path) != 0;
 
-    WriteLog("初始化", "配置：DisableObstacle=%s DisableAura=%s",
+    WriteLog("初始化", "配置：DisableObstacle=%s DisableAura=%s DisableLog=%s",
         g_disable_obstacle ? "是" : "否",
-        g_disable_aura     ? "是" : "否");
+        g_disable_aura     ? "是" : "否",
+        g_disable_log      ? "是" : "否");
 }
 
 // ==================== 工具函数 ====================
