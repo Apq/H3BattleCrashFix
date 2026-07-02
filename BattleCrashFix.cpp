@@ -9,7 +9,10 @@
 
 #pragma execution_character_set("utf-8")
 
-#include "homm3.h"
+#define _H3API_PATCHER_X86_
+#include <H3API.hpp>
+
+using namespace h3;
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -238,7 +241,7 @@ static int __stdcall HH_RemoveObstacle(HiHook* h, DWORD combatMgr, int obstacleN
     WriteLog("障碍", "移除 obstacle#%u addr=0x%08X def=0x%08X dur=%u",
         obstacleNum, obstacle, def, duration);
 
-    CALL_2(void, __thiscall, h->GetDefaultFunc(), combatMgr, obstacleNum);
+    THISCALL_2(void, h->GetDefaultFunc(), combatMgr, obstacleNum);
     return 0;
 }
 
@@ -271,7 +274,7 @@ static int __stdcall HH_UpdateAuraLinks(HiHook* h, DWORD target)
     }
 
     // 正常执行。
-    CALL_1(void, __thiscall, h->GetDefaultFunc(), target);
+    THISCALL_1(void, h->GetDefaultFunc(), target);
     return 0;
 }
 
@@ -320,7 +323,7 @@ static int __stdcall HH_VectorFindAndRemove(HiHook* h, DWORD vec, DWORD value)
     }
 
     // 正常执行。
-    CALL_2(void, __fastcall, h->GetDefaultFunc(), vec, value);
+    FASTCALL_2(void, h->GetDefaultFunc(), vec, value);
     return 0;
 }
 
@@ -372,4 +375,5 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
     }
     return TRUE;
 }
+
 
