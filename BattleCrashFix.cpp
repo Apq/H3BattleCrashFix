@@ -22,6 +22,14 @@ using namespace h3;
 Patcher*         _P  = nullptr;
 PatcherInstance* _PI = nullptr;
 
+// 崩溃防御（CrashGuard，见 CrashGuard.hpp 头注释 / 技能 h3-plugin-crash-guard）。
+#include "CrashGuard.hpp"
+
+// 本插件的钩子 id（静态初始化期注册，DllMain 之前完成）。
+static const int GUARD_REMOVE_OBSTACLE   = GuardRegisterHook_("RemoveObstacle");
+static const int GUARD_UPDATE_AURA       = GuardRegisterHook_("UpdateAuraLinks");
+static const int GUARD_VECTOR_FINDREMOVE = GuardRegisterHook_("FindAndRemove");
+
 static wchar_t g_wlog_path[MAX_PATH * 2];
 static wchar_t g_wini_path[MAX_PATH * 2];
 
@@ -307,21 +315,29 @@ static bool IsValidObstacle(DWORD combatMgr, int obstacleNum)
     }
 }
 
+// 铠甲（CrashGuard L2）：防崩型插件——整个钩子（含原函数调用）包 __try，
+// 异常被吞并落盘，安全默认 = 跳过本次原函数调用（正是本插件的修复语义：
+// 宁可跳过一次清理，也不让战斗崩溃）。原函数是函数尾调用，不存在
+// 双执行路径。异常聚合限流，钩子保持可用（无熔断）。
 static int __stdcall HH_RemoveObstacle(HiHook* h, DWORD combatMgr, int obstacleNum)
 {
-    if (!IsValidObstacle(combatMgr, obstacleNum)) {
-        return 0;  // 原函数返回 void，这里返回任意值
+    __try {
+        if (!IsValidObstacle(combatMgr, obstacleNum)) {
+            return 0;  // 原函数返回 void，这里返回任意值
+        }
+
+        // 记录移除信息。
+        DWORD vecBegin = *(DWORD*)(combatMgr + 0x13D5C);
+        DWORD obstacle = vecBegin + obstacleNum * 0x18;
+        DWORD def = *(DWORD*)(obstacle + 0x00);
+        DWORD duration = *(DWORD*)(obstacle + 0x10);
+        WriteLog("障碍", "移除 obstacle#%u addr=0x%08X def=0x%08X dur=%u",
+            obstacleNum, obstacle, def, duration);
+
+        THISCALL_2(void, h->GetDefaultFunc(), combatMgr, obstacleNum);
+    } __except (GuardCrashFilter_(GUARD_REMOVE_OBSTACLE, GetExceptionInformation())) {
+        return 0;
     }
-
-    // 记录移除信息。
-    DWORD vecBegin = *(DWORD*)(combatMgr + 0x13D5C);
-    DWORD obstacle = vecBegin + obstacleNum * 0x18;
-    DWORD def = *(DWORD*)(obstacle + 0x00);
-    DWORD duration = *(DWORD*)(obstacle + 0x10);
-    WriteLog("障碍", "移除 obstacle#%u addr=0x%08X def=0x%08X dur=%u",
-        obstacleNum, obstacle, def, duration);
-
-    THISCALL_2(void, h->GetDefaultFunc(), combatMgr, obstacleNum);
     return 0;
 }
 
@@ -331,10 +347,11 @@ static int __stdcall HH_RemoveObstacle(HiHook* h, DWORD combatMgr, int obstacleN
 //
 // 如果 target 处于丧心病狂(59)或蛊惑(60)状态，跳过整个函数。
 
+// 铠甲（CrashGuard L2）：同 HH_RemoveObstacle——整函数 __try，异常=跳过。
 static int __stdcall HH_UpdateAuraLinks(HiHook* h, DWORD target)
 {
-    if (target && IsProbablyReadableDword(target)) {
-        __try {
+    __try {
+        if (target && IsProbablyReadableDword(target)) {
             DWORD berserk_dur   = *(DWORD*)(target + OFS_ACTIVE_SPELLS_DURATION + SPELL_BERSERK   * 4);
             DWORD hypnotize_dur = *(DWORD*)(target + OFS_ACTIVE_SPELLS_DURATION + SPELL_HYPNOTIZE * 4);
 
@@ -348,13 +365,12 @@ static int __stdcall HH_UpdateAuraLinks(HiHook* h, DWORD target)
                 return 0;  // 跳过原函数
             }
         }
-        __except (EXCEPTION_EXECUTE_HANDLER) {
-            WriteLog("光环", "异常 target=0x%08X", target);
-        }
-    }
 
-    // 正常执行。
-    THISCALL_1(void, h->GetDefaultFunc(), target);
+        // 正常执行。
+        THISCALL_1(void, h->GetDefaultFunc(), target);
+    } __except (GuardCrashFilter_(GUARD_UPDATE_AURA, GetExceptionInformation())) {
+        return 0;
+    }
     return 0;
 }
 
@@ -364,14 +380,15 @@ static int __stdcall HH_UpdateAuraLinks(HiHook* h, DWORD target)
 //
 // 检查 vector 的 begin / end / endCapacity 有效性。
 
+// 铠甲（CrashGuard L2）：同上——整函数 __try，异常=跳过。
 static int __stdcall HH_VectorFindAndRemove(HiHook* h, DWORD vec, DWORD value)
 {
-    if (!vec || !IsProbablyReadableDword(vec)) {
-        WriteLog("阻止清理", "跳过 vec=0 (结构无效)");
-        return 0;
-    }
-
     __try {
+        if (!vec || !IsProbablyReadableDword(vec)) {
+            WriteLog("阻止清理", "跳过 vec=0 (结构无效)");
+            return 0;
+        }
+
         DWORD begin  = *(DWORD*)(vec + 0);
         DWORD end    = *(DWORD*)(vec + 4);
         DWORD endCap = *(DWORD*)(vec + 8);
@@ -396,14 +413,12 @@ static int __stdcall HH_VectorFindAndRemove(HiHook* h, DWORD vec, DWORD value)
             WriteLog("阻止清理", "跳过 vec=0x%08X count=%u 过大", vec, count);
             return 0;
         }
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER) {
-        WriteLog("阻止清理", "异常 vec=0x%08X", vec);
+
+        // 正常执行。
+        FASTCALL_2(void, h->GetDefaultFunc(), vec, value);
+    } __except (GuardCrashFilter_(GUARD_VECTOR_FINDREMOVE, GetExceptionInformation())) {
         return 0;
     }
-
-    // 正常执行。
-    FASTCALL_2(void, h->GetDefaultFunc(), vec, value);
     return 0;
 }
 
@@ -436,6 +451,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
         initialized = true;
 
         SetupPaths(hModule);
+        // CrashGuard L1：无条件安装崩溃自记录（版本不对/修复全关也要能记录）。
+        // DisableLog 时 g_wlog_path 为空，防御日志随之关闭（尊重玩家日志开关）。
+        GuardSetLogPathW(g_wlog_path);
+        InstallCrashGuard();
         WriteLog("初始化", "BattleCrashFix 正在加载。");
 
         _P = GetPatcher();
@@ -450,8 +469,18 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
             return TRUE;
         }
 
+        // CrashGuard L4 版本门卫：SoD 数据指纹不吻合（完整版/HotA/改版 exe）
+        // 时不挂钩——偏移错配的代价比失去功能大得多。
+        if (!GuardVerifySodBytes_()) {
+            WriteLog("初始化", "[Guard] 版本门卫不通过：已停用全部钩子（仅保留日志与崩溃自记录）。");
+            return TRUE;
+        }
+
         LoadConfig();
         StartPlugin();
+    } else if (reason == DLL_PROCESS_DETACH) {
+        // 判读生死标记：日志末尾有此行 = 正常退出；没有 = 崩溃/强杀。
+        GuardShutdown();
     }
     return TRUE;
 }
