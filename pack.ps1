@@ -37,14 +37,13 @@ function Get-PackVersion {
 function Test-PackExcluded {
     param([string]$RelativePath)
     $name = [System.IO.Path]::GetFileName($RelativePath)
-    if ($name -eq 'H3RndNew.user.ini') { return $true }
     if ($name -like '*.log') { return $true }
     return $false
 }
 
 $version = Get-PackVersion
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
-$zipPath = Join-Path $OutputDir "真随机开局_$version.zip"
+$zipPath = Join-Path $OutputDir "战斗崩溃修复_$version.zip"
 if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }
