@@ -6,11 +6,14 @@ _r2_*.r2
 *.vcxproj.user
 
 # 编译产物 —— 顶层输出目录（sp.slnx 作为解决方案时 SolutionDir=sp\）
-/Release/
+# 顶层 Release 放行 *.zip（发版包入库）；其余编译产物忽略。
+/Release/*
+!/Release/*.zip
 /Debug/
 
-# 各项目内部输出目录
+# 各项目内部输出目录（**/Release/ 会连顶层一起忽略，需在其后重新包含顶层）
 **/Release/
+!/Release/
 **/Debug/
 
 # VS 中间目录（IntDir 默认 = ProjectName/Configuration/）
